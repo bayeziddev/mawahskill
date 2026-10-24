@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers\Employee;
+
+use Illuminate\Http\Request;
+
+use  App\Http\Controllers;
+use App\Http\Controllers\Controller;
+use App\Models\Employee;
+use App\Models\LeaveType;
+use App\Models\Leave;
+use App\Models\LeaveNotification;
+
+
+class EmployeeController extends Controller{
+
+
+   public function dashboard()
+{
+    $employee = auth('employee')->user();
+
+    $leaveTypes = LeaveType::where('is_active', 1)->get();
+
+    // Approved leave — type অনুযায়ী কতদিন নেওয়া হয়েছে
+    $usedByType = Leave::where('employee_id', $employee->id)
+        ->where('status', 'approved')
+        ->selectRaw('leave_type_id, SUM(duration) as used_days')
+        ->groupBy('leave_type_id')
+        ->pluck('used_days', 'leave_type_id');
+
+    // নির্দিষ্ট type খোঁজো
+    $annual = $leaveTypes->first(fn($t) => str_contains(strtolower($t->name), 'annual'));
+    $sick   = $leaveTypes->first(fn($t) => str_contains(strtolower($t->name), 'sick'));
+    $casual = $leaveTypes->first(fn($t) => str_contains(strtolower($t->name), 'casual'));
+
+    // Used days per type
+    $annualUsed = $annual ? ($usedByType[$annual->id] ?? 0) : 0;
+    $sickUsed   = $sick   ? ($usedByType[$sick->id]   ?? 0) : 0;
+    $casualUsed = $casual ? ($usedByType[$casual->id]  ?? 0) : 0;
+
+    // Annual balance
+    $annualBalance = $annual
+        ? max(0, $annual->days_allowed - $annualUsed)
+        : 0;
+        $casualBalance = $casual
+        ? max(0, $casual->days_allowed - $casualUsed)
+        : 0;
+        $sickBalance = $sick
+        ? max(0, $sick->days_allowed - $sickUsed)
+        : 0;
+
+    // Total remaining — সব type এর allowed - used
+    $totalAllowed    = $leaveTypes->sum('days_allowed');
+    $totalUsed       = $usedByType->sum();
+    $remainingLeaves = max(0, $totalAllowed - $totalUsed);
+
+    // Recent leave history — last 5
+    $recentLeaves = Leave::where('employee_id', $employee->id)
+        ->with('leaveType')
+        ->latest()
+        ->take(5)
+        ->get();
+
+    // HR Manager
+    $hrManager = \App\Models\HrAdmin::first();
+
+      $unreadNotifications = LeaveNotification::where('recipient_type', 'employee')
+        ->where('recipient_id', $employee->id)
+        ->whereNull('read_at')
+        ->latest()
+        ->get();
+
+    $unreadCount = $unreadNotifications->count();
+return view('employee.dashboard', compact(
+    'leaveTypes',
+    'annual', 'sick', 'casual',
+    'annualBalance', 'annualUsed',
+    'sickBalance', 'sickUsed',
+    'casualBalance', 'casualUsed',
+    'remainingLeaves',
+    'recentLeaves',
+    'hrManager',
+    'unreadNotifications',
+    'unreadCount'
+));
+}
+
+public function notificationsIndex()
+{
+    $employee = auth('employee')->user();
+
+    $notifications = LeaveNotification::where('recipient_type', 'employee')
+        ->where('recipient_id', $employee->id)
+        ->with('leave.leaveType')
+        ->latest()
+        ->paginate(15);
+
+    return view('employee.notifications.index', compact('notifications'));
+}
+
+public function markNotificationRead($id)
+{
+    $notification = LeaveNotification::find($id);
+
+    if ($notification) {
+        $notification->update(['read_at' => now()]);
+    }
+
+    return response()->json(['success' => true]);
+}
+
+public function markAllNotificationsRead()
+{
+    $employee = auth('employee')->user();
+
+    LeaveNotification::where('recipient_type', 'employee')
+        ->where('recipient_id', $employee->id)
+        ->whereNull('read_at')
+        ->update(['read_at' => now()]);
+
+    return back()->with('success', 'All notifications marked as read.');
+}
+
+
+public function leave_history()
+{
+    $employee = auth('employee')->user();
+
+    $query = Leave::where('employee_id', $employee->id)
+        ->with('leaveType')
+        ->latest();
+
+    // Filter by status
+    $filter = request('filter', 'all');
+
+    if ($filter === 'pending') {
+        $query->where('status', 'pending');
+    } elseif ($filter === 'approved') {
+        $query->where('status', 'approved');
+    } elseif ($filter === 'rejected') {
+        $query->where('status', 'rejected');
+    }
+
+    $leaves = $query->paginate(10)->withQueryString();
+
+    // KPI counts
+    $baseQuery = Leave::where('employee_id', $employee->id);
+
+    $totalCount    = (clone $baseQuery)->count();
+    $pendingCount  = (clone $baseQuery)->where('status', 'pending')->count();
+    $approvedCount = (clone $baseQuery)->where('status', 'approved')->count();
+    $rejectedCount = (clone $baseQuery)->where('status', 'rejected')->count();
+
+    return view('employee.history.index', compact(
+        'leaves', 'filter',
+        'totalCount', 'pendingCount', 'approvedCount', 'rejectedCount'
+    ));
+}
+}
+
+
