@@ -1,0 +1,745 @@
+@extends('hr.layouts.hr')
+
+@section('title', 'Employee Directory - Skills Hut Ltd')
+
+@push('styles')
+<style>
+    .page-title { font-family: 'Outfit', sans-serif; font-size: 1.8rem; font-weight: 700; color: #1A1A1A; }
+    .page-subtitle { font-size: 0.88rem; color: #7F7F7F; }
+
+    .btn-export { background: #fff; border: 1px solid #E2E0DD; color: #1A1A1A; border-radius: 8px; font-weight: 600; font-size: 0.88rem; padding: 10px 20px; transition: all 0.2s; }
+    .btn-export:hover { background: #FAF9F6; }
+    .btn-add-emp { background: #FF5E2B; color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.88rem; padding: 10px 20px; transition: all 0.2s; text-decoration: none; }
+    .btn-add-emp:hover { background: #E04B1A; color: #fff; }
+
+    .filter-bar { background: #fff; border: 1px solid #E2E0DD; border-radius: 12px; padding: 14px 20px; }
+    .filter-select { border: 1px solid #E2E0DD; border-radius: 8px; font-size: 0.85rem; color: #1A1A1A; padding: 7px 32px 7px 12px; background: #FAF9F6; appearance: none; cursor: pointer; }
+    .filter-select:focus { outline: none; border-color: #FF5E2B; box-shadow: 0 0 0 3px rgba(255,94,43,0.1); }
+    .view-toggle { border: 1px solid #E2E0DD; border-radius: 8px; overflow: hidden; display: flex; }
+    .view-btn { background: none; border: none; padding: 7px 10px; color: #7F7F7F; transition: all 0.2s; }
+    .view-btn.active { background: #FF5E2B; color: #fff; }
+    .view-btn:hover:not(.active) { background: #FAF9F6; }
+
+    .emp-card { background: #fff; border: 1px solid #E2E0DD; border-radius: 14px; padding: 20px; transition: all 0.2s; height: 100%; }
+    .emp-card:hover { border-color: #FF5E2B; box-shadow: 0 4px 16px rgba(255,94,43,0.08); transform: translateY(-2px); }
+
+    .emp-photo-wrap { position: relative; display: inline-block; margin-bottom: 14px; }
+    .emp-photo { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; filter: grayscale(20%); }
+
+    .status-badge { position: absolute; top: -8px; right: -8px; font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; letter-spacing: 0.3px; }
+    .status-active { background: #ECFDF5; color: #059669; }
+    .status-inactive { background: #F4F4F0; color: #7F7F7F; }
+    .status-pending { background: #FEF3C7; color: #D97706; }
+
+    .emp-name { font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700; color: #1A1A1A; margin-bottom: 2px; }
+    .emp-role { font-size: 0.78rem; font-weight: 600; color: #FF5E2B; margin-bottom: 4px; }
+    .emp-dept { font-size: 0.78rem; color: #7F7F7F; display: flex; align-items: center; gap: 4px; }
+
+    .emp-divider { border-color: #F4F4F0; margin: 14px 0; }
+
+    .emp-avatar-initials { width: 30px; height: 30px; border-radius: 50%; background: #F4F4F0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #4A4A4A; }
+    .link-view { color: #FF5E2B; font-size: 0.82rem; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 4px; }
+    .link-view:hover { text-decoration: underline; color: #E04B1A; }
+
+    .emp-card-add { background: #fff; border: 2px dashed #C0BAB4; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 220px; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .emp-card-add:hover { border-color: #FF5E2B; background: #FFF8F5; }
+    .add-icon { width: 44px; height: 44px; border-radius: 50%; background: #F4F4F0; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #7F7F7F; margin-bottom: 10px; transition: all 0.2s; }
+    .emp-card-add:hover .add-icon { background: #FF5E2B; color: #fff; }
+    .add-label { font-size: 0.85rem; color: #7F7F7F; font-weight: 500; }
+
+    .pagination-info { font-size: 0.82rem; color: #7F7F7F; }
+    .pagination { margin-bottom: 0; }
+    .page-link { color: #FF5E2B; border-color: #E2E0DD; }
+    .page-item.active .page-link { background-color: #FF5E2B; border-color: #FF5E2B; }
+
+    .pending-panel { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 14px; overflow: hidden; }
+    .pending-panel-header { padding: 14px 18px; border-bottom: 1px solid #FDE68A; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .pending-panel-title { display: flex; align-items: center; gap: 8px; font-weight: 800; color: #92400E; }
+    .pending-count-badge { background: #F59E0B; color: #fff; border-radius: 999px; font-size: 0.72rem; padding: 2px 8px; }
+    .pending-item { display: grid; grid-template-columns: 44px minmax(160px, 1fr) minmax(220px, 1.4fr) auto; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid #FDE68A; }
+    .pending-item:last-child { border-bottom: none; }
+    .pending-avatar { width: 40px; height: 40px; border-radius: 50%; background: #FEF3C7; color: #92400E; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.78rem; }
+    .pending-name { font-size: 0.9rem; font-weight: 800; color: #1A1A1A; }
+    .pending-meta { font-size: 0.76rem; color: #92400E; opacity: 0.75; }
+    .pending-message { font-size: 0.82rem; color: #4A4A4A; }
+    .pending-status { font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
+
+    /* Table View Styles */
+    .emp-table-wrap { background: #fff; border: 1px solid #E2E0DD; border-radius: 14px; overflow: hidden; }
+    .emp-table { width: 100%; border-collapse: collapse; }
+    .emp-table thead { background: #FAF9F6; border-bottom: 2px solid #E2E0DD; }
+    .emp-table th { padding: 14px 18px; text-align: left; font-size: 0.78rem; font-weight: 700; color: #7F7F7F; text-transform: uppercase; letter-spacing: 0.5px; }
+    .emp-table tbody tr { border-bottom: 1px solid #F4F4F0; transition: all 0.2s; }
+    .emp-table tbody tr:last-child { border-bottom: none; }
+    .emp-table tbody tr:hover { background: #FFF8F5; }
+    .emp-table td { padding: 16px 18px; vertical-align: middle; }
+    
+    .table-emp-info { display: flex; align-items: center; gap: 12px; }
+    .table-emp-photo { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; filter: grayscale(20%); }
+    .table-emp-name { font-family: 'Outfit', sans-serif; font-size: 0.92rem; font-weight: 700; color: #1A1A1A; margin-bottom: 2px; }
+    .table-emp-id { font-size: 0.72rem; color: #B2ADA7; font-family: monospace; margin-top: 2px; }
+    .table-emp-role { font-size: 0.75rem; font-weight: 600; color: #FF5E2B; }
+    
+    .table-dept { font-size: 0.82rem; color: #4A4A4A; display: flex; align-items: center; gap: 4px; }
+    .table-designation { font-size: 0.85rem; color: #4A4A4A; }
+    .table-status { display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; letter-spacing: 0.3px; }
+    .table-status-active { background: #ECFDF5; color: #059669; }
+    .table-status-inactive { background: #F4F4F0; color: #7F7F7F; }
+    .table-status-pending { background: #FEF3C7; color: #D97706; }
+
+    /* View Profile Button - Global Styles */
+    .btn-view-profile {
+        background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE;
+        border-radius: 6px; font-size: 0.78rem; font-weight: 600;
+        padding: 6px 14px; text-decoration: none; display: inline-flex;
+        align-items: center; gap: 4px; transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-view-profile:hover {
+        background: #2563EB; color: #fff; border-color: #2563EB;
+    }
+
+    .view-hidden { display: none !important; }
+
+    /* ============================================
+       PAGE-SPECIFIC RESPONSIVE (Using Unique Class)
+       ============================================ */
+
+    /* ===== Tablet (≤991px) ===== */
+    @media (max-width: 991.98px) {
+        .page-title {
+            font-size: 1.5rem;
+        }
+
+        .emp-card {
+            padding: 16px;
+        }
+
+        .emp-photo {
+            width: 64px;
+            height: 64px;
+        }
+
+        .emp-name {
+            font-size: 0.95rem;
+        }
+
+        .pending-item {
+            grid-template-columns: 40px 1fr;
+            gap: 10px;
+            padding: 12px 14px;
+        }
+
+        .pending-message, .pending-status {
+            grid-column: 2;
+        }
+
+        .emp-table th,
+        .emp-table td {
+            padding: 12px 14px;
+            font-size: 0.78rem;
+        }
+
+        .table-emp-photo {
+            width: 40px;
+            height: 40px;
+        }
+
+        .table-emp-name {
+            font-size: 0.85rem;
+        }
+    }
+
+    /* ===== Mobile (≤768px) ===== */
+    @media (max-width: 768px) {
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+        .page-subtitle {
+            font-size: 0.8rem;
+        }
+
+        /* Page header section - stack vertically (using unique class) */
+        .page-header-section {
+            flex-direction: column !important;
+            gap: 12px !important;
+            align-items: stretch !important;
+        }
+
+        .page-header-section > div:last-child {
+            width: 100%;
+        }
+
+        .page-header-section .btn-export,
+        .page-header-section .btn-add-emp {
+            flex: 1;
+            justify-content: center;
+            font-size: 0.82rem;
+            padding: 9px 16px;
+        }
+
+        /* Filter bar - stack elements */
+        .filter-bar {
+            padding: 12px 14px;
+        }
+
+        .filter-bar > div:first-child {
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch !important;
+            gap: 10px;
+        }
+
+        .filter-bar > div:first-child > div {
+            width: 100%;
+        }
+
+        .filter-select {
+            width: 100%;
+            font-size: 0.82rem;
+            padding: 9px 32px 9px 12px;
+        }
+
+        .view-toggle {
+            width: 100%;
+            margin-top: 4px;
+        }
+
+        .view-btn {
+            flex: 1;
+            padding: 9px 12px;
+        }
+
+        /* Employee cards - single column */
+        .col-12.col-sm-6.col-xl-3 {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+
+        .emp-card {
+            padding: 16px;
+        }
+
+        .emp-photo {
+            width: 60px;
+            height: 60px;
+        }
+
+        .emp-name {
+            font-size: 0.95rem;
+        }
+
+        .emp-role {
+            font-size: 0.75rem;
+        }
+
+        .emp-dept {
+            font-size: 0.75rem;
+        }
+
+        .emp-card-add {
+            min-height: 160px;
+            padding: 16px;
+        }
+
+        .add-icon {
+            width: 40px;
+            height: 40px;
+            font-size: 1.1rem;
+        }
+
+        .add-label {
+            font-size: 0.82rem;
+        }
+
+        /* Pending panel - mobile layout */
+        .pending-panel-header {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 12px 14px;
+        }
+
+        .pending-panel-title {
+            font-size: 0.88rem;
+        }
+
+        .pending-item {
+            grid-template-columns: 36px 1fr;
+            gap: 10px;
+            padding: 12px 14px;
+        }
+
+        .pending-avatar {
+            width: 36px;
+            height: 36px;
+            font-size: 0.72rem;
+        }
+
+        .pending-name {
+            font-size: 0.85rem;
+        }
+
+        .pending-meta {
+            font-size: 0.72rem;
+        }
+
+        .pending-message {
+            font-size: 0.78rem;
+            margin-top: 4px;
+        }
+
+        .pending-status {
+            font-size: 0.7rem;
+            margin-top: 4px;
+        }
+
+        /* Table - responsive scroll */
+        .emp-table-wrap {
+            overflow-x: auto;
+        }
+
+        .emp-table {
+            min-width: 800px;
+        }
+
+        .emp-table th,
+        .emp-table td {
+            padding: 10px 12px;
+            font-size: 0.75rem;
+        }
+
+        .table-emp-photo {
+            width: 36px;
+            height: 36px;
+        }
+
+        .table-emp-name {
+            font-size: 0.82rem;
+        }
+
+        .table-emp-role {
+            font-size: 0.72rem;
+        }
+
+        .btn-view-profile {
+            font-size: 0.75rem;
+            padding: 5px 12px;
+        }
+
+        /* Pagination - stack */
+        .page-pagination-section {
+            flex-direction: column !important;
+            gap: 12px !important;
+            align-items: stretch !important;
+        }
+
+        .page-pagination-section .pagination-info {
+            font-size: 0.78rem;
+            text-align: center;
+        }
+
+        .page-pagination-section .pagination {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .page-pagination-section .page-link {
+            padding: 6px 10px;
+            font-size: 0.82rem;
+        }
+    }
+
+    /* ===== Small Mobile (≤576px) ===== */
+    @media (max-width: 576px) {
+        .page-title {
+            font-size: 1.2rem;
+        }
+
+        .emp-card {
+            padding: 14px;
+        }
+
+        .emp-photo {
+            width: 56px;
+            height: 56px;
+        }
+
+        .status-badge {
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            top: -6px;
+            right: -6px;
+        }
+
+        .emp-name {
+            font-size: 0.9rem;
+        }
+
+        .link-view {
+            font-size: 0.78rem;
+        }
+
+        .page-header-section .btn-export,
+        .page-header-section .btn-add-emp {
+            font-size: 0.78rem;
+            padding: 8px 14px;
+        }
+
+        .filter-select {
+            font-size: 0.78rem;
+        }
+
+        .pending-panel-title {
+            font-size: 0.82rem;
+            flex-wrap: wrap;
+        }
+
+        .pending-count-badge {
+            font-size: 0.68rem;
+        }
+
+        .emp-table th,
+        .emp-table td {
+            padding: 8px 10px;
+            font-size: 0.72rem;
+        }
+
+        .table-emp-photo {
+            width: 32px;
+            height: 32px;
+        }
+
+        .table-emp-name {
+            font-size: 0.78rem;
+        }
+
+        .btn-view-profile {
+            font-size: 0.72rem;
+            padding: 4px 10px;
+        }
+    }
+</style>
+@endpush
+
+@section('content')
+
+@php
+    $departments = \App\Models\Department::orderBy('name')->get();
+
+    $employees = \App\Models\Employee::with('department')
+        ->when(request('department_id'), function ($query) {
+            $query->where('department_id', request('department_id'));
+        })
+        ->when(request('role'), function ($query) {
+            $query->where('role', request('role'));
+        })
+        ->when(request('status'), function ($query) {
+            $query->where('status', request('status'));
+        })
+        ->latest()
+        ->paginate(8)
+        ->withQueryString();
+
+    $pendingNotifications = \App\Models\Notification::with(['employee.department'])
+        ->where('type', 'employee_creation')
+        ->where('status', 'pending')
+        ->latest()
+        ->get();
+@endphp
+
+{{-- Page Header with unique class --}}
+<div class="page-header-section d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h1 class="page-title mb-1">Employee Directory</h1>
+        <p class="page-subtitle mb-0">Manage and view all team members across the organization.</p>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a href="{{ route('hr_admin.employee.export-csv') }}" class="btn-export d-flex align-items-center gap-2 text-decoration-none">
+            <i class="bi bi-download"></i> Export
+        </a>
+
+        <a href="{{ route('hr_admin.employee.create') }}" class="btn-add-emp d-flex align-items-center gap-2">
+            <i class="bi bi-person-plus"></i> Add Employee
+        </a>
+    </div>
+</div>
+
+<form method="GET" action="{{ route('hr_admin.employee.index') }}" class="filter-bar d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span style="font-size:0.82rem; font-weight:600; color:#7F7F7F;">Filter by:</span>
+
+        <div style="position:relative;">
+            <select name="department_id" class="filter-select" onchange="this.form.submit()">
+                <option value="">All Departments</option>
+
+                @foreach($departments as $department)
+                    <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }}>
+                        {{ $department->name }}
+                    </option>
+                @endforeach
+            </select>
+            <i class="bi bi-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:0.7rem;color:#7F7F7F;pointer-events:none;"></i>
+        </div>
+
+        <div style="position:relative;">
+            <select name="role" class="filter-select" onchange="this.form.submit()">
+                <option value="">All Roles</option>
+                <option value="admin" {{ request('role') == 'admin' ? 'selected' : '' }}>Admin</option>
+                <option value="hr_admin" {{ request('role') == 'hr_admin' ? 'selected' : '' }}>HR Admin</option>
+                <option value="employee" {{ request('role') == 'employee' ? 'selected' : '' }}>Employee</option>
+                <option value="team_lead" {{ request('role') == 'team_lead' ? 'selected' : '' }}>Team Lead</option>
+            </select>
+            <i class="bi bi-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:0.7rem;color:#7F7F7F;pointer-events:none;"></i>
+        </div>
+
+        <div style="position:relative;">
+            <select name="status" class="filter-select" onchange="this.form.submit()">
+                <option value="">Status: All</option>
+                <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
+                <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
+            </select>
+            <i class="bi bi-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:0.7rem;color:#7F7F7F;pointer-events:none;"></i>
+        </div>
+
+        @if(request('department_id') || request('role') || request('status'))
+            <a href="{{ route('hr_admin.employee.index') }}" class="btn-export d-flex align-items-center gap-2 text-decoration-none">
+                <i class="bi bi-x-lg"></i> Clear
+            </a>
+        @endif
+    </div>
+
+    <div class="view-toggle">
+        <button type="button" class="view-btn active" id="grid-view"><i class="bi bi-grid"></i></button>
+        <button type="button" class="view-btn" id="list-view"><i class="bi bi-list-ul"></i></button>
+    </div>
+</form>
+
+{{-- Pending Approvals Panel --}}
+@if($pendingNotifications->isNotEmpty())
+    <div class="pending-panel mb-4">
+        <div class="pending-panel-header">
+            <div class="pending-panel-title">
+                <i class="bi bi-hourglass-split"></i>
+                Pending Employee Approvals
+                <span class="pending-count-badge">{{ $pendingNotifications->count() }}</span>
+            </div>
+
+            <span style="font-size:0.78rem; color:#92400E; opacity:.7;">
+                Waiting for admin approval
+            </span>
+        </div>
+
+        @foreach($pendingNotifications as $notification)
+            @php $emp = $notification->employee; @endphp
+
+            <div class="pending-item">
+                <div class="pending-avatar">
+                    {{ strtoupper(substr($emp->name ?? '?', 0, 2)) }}
+                </div>
+
+                <div class="pending-info">
+                    <div class="pending-name">{{ $emp->name ?? 'Unknown' }}</div>
+                    <div class="pending-meta">
+                        {{ $emp->designation ?? 'N/A' }}
+                        @if($emp?->department)
+                            &nbsp;·&nbsp; {{ $emp->department->name }}
+                        @endif
+                        &nbsp;·&nbsp;
+                        <i class="bi bi-clock" style="font-size:.7rem;"></i>
+                        {{ $notification->created_at->diffForHumans() }}
+                    </div>
+                </div>
+
+                <div class="pending-message">
+                    <span>{{ $notification->message }}</span>
+                </div>
+
+                <div class="pending-status" style="color:
+                    @if(($emp->status ?? '') === 'active') #059669
+                    @elseif(($emp->status ?? '') === 'pending') #D97706
+                    @else #7F7F7F
+                    @endif;">
+                    {{ strtoupper(str_replace('_', ' ', $emp->status ?? 'N/A')) }}
+                </div>
+            </div>
+        @endforeach
+    </div>
+@endif
+
+{{-- Grid View --}}
+<div id="grid-view-container" class="row g-3 mb-4">
+    @forelse($employees as $employee)
+    @if($employee->status === 'active')
+    
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="emp-card">
+                <div class="emp-photo-wrap">
+                    @if($employee->profile_picture)
+                        <img src="{{ asset('storage/' . $employee->profile_picture) }}" class="emp-photo" alt="{{ $employee->name }}">
+                    @else
+                        <img src="{{ asset('images/admin_avatar.png') }}" class="emp-photo" alt="{{ $employee->name }}">
+                    @endif
+
+                    <span class="status-badge status-active">ACTIVE</span>
+                </div>
+
+                <div class="emp-name">{{ $employee->name }}</div>
+                <div class="emp-role">{{ $employee->designation ?? 'N/A' }}</div>
+
+                <div class="emp-dept">
+                    <i class="bi bi-building" style="font-size:0.7rem;"></i>
+                    {{ $employee->department->name ?? 'No Department' }}
+                </div>
+
+                <hr class="emp-divider">
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="emp-avatar-initials">
+                        {{ strtoupper(substr($employee->name, 0, 1)) }}
+                    </div>
+                    <a href="{{ route('hr_admin.employee.show', $employee->id) }}" class="btn-view-profile">
+                        View Profile <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+    @endif 
+@empty
+    <div class="col-12">
+        <div class="emp-card text-center" style="border: 2px dashed #C0BAB4;">
+            <div class="add-icon"><i class="bi bi-emoji-frown" style="color:#7F7F7F;"></i></div>
+            <div class="add-label" style="color:#7F7F7F;">No employees found.</div>
+        </div>
+    </div>
+@endforelse
+
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a href="{{ route('hr_admin.employee.create') }}" class="emp-card-add">
+            <div class="add-icon"><i class="bi bi-plus-lg"></i></div>
+            <div class="add-label">Add New Employee</div>
+        </a>
+    </div>
+</div>
+
+{{-- Table View --}}
+<div id="list-view-container" class="view-hidden mb-4">
+    <div class="emp-table-wrap">
+        <table class="emp-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Designation</th>
+                    <th>Department</th>
+                    <th>Employee ID</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($employees as $employee)
+                    @if($employee->status === 'active')
+                    <tr>
+                        <td>
+                            <div class="table-emp-info">
+                                @if($employee->profile_picture)
+                                    <img src="{{ asset('storage/' . $employee->profile_picture) }}" class="table-emp-photo" alt="{{ $employee->name }}">
+                                @else
+                                    <img src="{{ asset('images/admin_avatar.png') }}" class="table-emp-photo" alt="{{ $employee->name }}">
+                                @endif
+                                <div>
+                                    <div class="table-emp-name">{{ $employee->name }}</div>
+                                    <div class="table-emp-id">{{ $employee->employee_id ?? 'N/A' }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="table-designation">{{ $employee->designation ?? 'N/A' }}</span>
+                        </td>
+                        <td>
+                            <div class="table-dept">
+                                <i class="bi bi-building" style="font-size:0.75rem;"></i>
+                                {{ $employee->department->name ?? 'No Department' }}
+                            </div>
+                        </td>
+                        <td>
+                            <span style="font-family:monospace; color:#4A4A4A;">{{ $employee->employee_id ?? 'N/A' }}</span>
+                        </td>
+                        <td>
+                            <span class="table-status table-status-active">ACTIVE</span>
+                        </td>
+                        <td>
+                            <a href="{{ route('hr_admin.employee.show', $employee->id) }}" class="btn-view-profile">
+                                View <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    @endif
+                @empty
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="add-icon mx-auto mb-2"><i class="bi bi-emoji-frown" style="color:#7F7F7F;"></i></div>
+                            <div class="add-label" style="color:#7F7F7F;">No employees found.</div>
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{{-- Pagination with unique class --}}
+<div class="page-pagination-section d-flex justify-content-between align-items-center">
+    <span class="pagination-info">
+        Showing {{ $employees->firstItem() ?? 0 }} to {{ $employees->lastItem() ?? 0 }} of {{ $employees->total() }} employees
+    </span>
+
+    <div>
+        {{ $employees->links() }}
+    </div>
+</div>
+
+@endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const gridViewBtn = document.getElementById('grid-view');
+        const listViewBtn = document.getElementById('list-view');
+        const gridViewContainer = document.getElementById('grid-view-container');
+        const listViewContainer = document.getElementById('list-view-container');
+
+        // Check localStorage for saved preference
+        const savedView = localStorage.getItem('employeeViewPreference');
+        if (savedView === 'list') {
+            showListView();
+        }
+
+        gridViewBtn.addEventListener('click', function() {
+            showGridView();
+            localStorage.setItem('employeeViewPreference', 'grid');
+        });
+
+        listViewBtn.addEventListener('click', function() {
+            showListView();
+            localStorage.setItem('employeeViewPreference', 'list');
+        });
+
+        function showGridView() {
+            gridViewContainer.classList.remove('view-hidden');
+            listViewContainer.classList.add('view-hidden');
+            gridViewBtn.classList.add('active');
+            listViewBtn.classList.remove('active');
+        }
+
+        function showListView() {
+            listViewContainer.classList.remove('view-hidden');
+            gridViewContainer.classList.add('view-hidden');
+            listViewBtn.classList.add('active');
+            gridViewBtn.classList.remove('active');
+        }
+    });
+</script>
+@endpush
